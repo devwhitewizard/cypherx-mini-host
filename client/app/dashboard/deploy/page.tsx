@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
+  CheckCircle2,
   FileArchive,
   GitBranch,
   Loader2,
   RefreshCw,
+  XCircle,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -18,6 +20,16 @@ import { Button } from '@/components/ui/Button';
 
 type DeployMethod = 'github' | 'zip';
 
+const TERMINAL_STATUSES = new Set([
+  'running',
+  'online',
+  'completed',
+  'success',
+  'succeeded',
+  'failed',
+  'error',
+]);
+
 export default function DeployPage() {
   const [method, setMethod] = useState<DeployMethod>('github');
   const [deployment, setDeployment] = useState<DeploymentResponse | null>(null);
@@ -25,8 +37,11 @@ export default function DeployPage() {
   const [statusError, setStatusError] = useState<string | null>(null);
 
   const deploymentId = deployment?.deploymentId || deployment?.id;
+  const normalizedStatus = (deployment?.status || '').toLowerCase().trim();
+  const isTerminal = TERMINAL_STATUSES.has(normalizedStatus);
+  const isFailed = normalizedStatus === 'failed' || normalizedStatus === 'error';
 
-  const refreshDeploymentStatus = async () => {
+  const refreshDeploymentStatus = useCallback(async () => {
     if (!deploymentId) return;
     setCheckingStatus(true);
     setStatusError(null);
@@ -40,7 +55,15 @@ export default function DeployPage() {
     } finally {
       setCheckingStatus(false);
     }
-  };
+  }, [deploymentId]);
+
+  useEffect(() => {
+    if (!deploymentId || isTerminal) return;
+    const interval = setInterval(() => {
+      refreshDeploymentStatus();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [deploymentId, isTerminal, refreshDeploymentStatus]);
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -96,12 +119,24 @@ export default function DeployPage() {
         <div className="rounded-xl border border-border bg-surface p-5 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <Loader2 className="h-4 w-4 text-indigo-400 animate-spin" />
+              {isFailed ? (
+                <XCircle className="h-4 w-4 text-red-400" />
+              ) : isTerminal ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              ) : (
+                <Loader2 className="h-4 w-4 text-indigo-400 animate-spin" />
+              )}
               <h3 className="text-sm font-semibold text-zinc-100">
                 Deployment Status
               </h3>
               {deployment.status && (
-                <Badge variant="accent">{deployment.status}</Badge>
+                <Badge
+                  variant={
+                    isFailed ? 'danger' : isTerminal ? 'success' : 'accent'
+                  }
+                >
+                  {deployment.status}
+                </Badge>
               )}
             </div>
 

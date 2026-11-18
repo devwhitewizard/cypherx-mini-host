@@ -74,13 +74,13 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    const message =
-      (data &&
-        typeof data === 'object' &&
-        'message' in data &&
-        typeof (data as { message?: unknown }).message === 'string' &&
-        (data as { message: string }).message) ||
-      `Request failed with status ${response.status}`;
+    let message = `Request failed with status ${response.status}`;
+    if (data && typeof data === 'object' && 'message' in data) {
+      const rawMessage = (data as Record<string, unknown>).message;
+      if (typeof rawMessage === 'string' && rawMessage.trim()) {
+        message = rawMessage;
+      }
+    }
     throw new ApiClientError(message, response.status, false);
   }
 
